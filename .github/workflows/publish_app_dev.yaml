@@ -1,31 +1,29 @@
-name: app-build-action-dev-android-only
+name: app-build-android-only
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # 手动触发
   push:
     tags:
-      - "dev_v*"
+      - "dev_v*"    # 打 dev_v* 标签自动触发
 
 jobs:
   build-android:
-    runs-on: macos-latest
-
+    runs-on: ubuntu-latest  # 用 Ubuntu 避免 macOS Git 问题
     permissions:
-      contents: write
+      contents: read
 
     steps:
-      # 签出代码（固定 dev 分支，禁用子模块）
-      - uses: actions/checkout@v4
+      # 1. 强制用 HTTPS 拉取 dev 分支，彻底绕开 SSH 和通配符
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
         with:
-          # 精确指定分支名，避免通配符匹配失败
           ref: dev
-          # 明确禁用子模块和标签拉取，减少不必要操作
+          fetch-depth: 1
           submodules: false
           fetch-tags: false
-          # 浅克隆，加快速度
-          fetch-depth: 1
+          persist-credentials: false  # 强制用 HTTPS
 
-      # APK 签名设置
+      # 2. 下载并还原 Android 签名密钥（你之前那 4 个 Secrets 在这里生效）
       - name: Download Android keystore
         id: android_keystore
         uses: timheuer/base64-to-file@v1.2
@@ -40,42 +38,39 @@ jobs:
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> simple_live_app/android/key.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> simple_live_app/android/key.properties
 
-      # 设置 JAVA 环境
-      - uses: actions/setup-java@v4
+      # 3. 配置 Java 环境
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: "zulu"
           java-version: "17"
           cache: "gradle"
 
-      # 设置 Flutter
-      - name: Flutter action
+      # 4. 配置 Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.38.x"
           cache: true
 
-      # 更新 Flutter packages
-      - name: Restore packages
+      # 5. 拉取依赖
+      - name: Install dependencies
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 打包 APK（release + split per abi）
-      - name: Build APK
+      # 6. 只编译 Android Release APK
+      - name: Build Android APK
         run: |
           cd simple_live_app
           flutter build apk --release --split-per-abi
 
-      # 上传 APK 到 Artifacts
-      - name: Upload APK to Artifacts
+      # 7. 上传编译好的 APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
+          name: android-release-apk
           path: |
             simple_live_app/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
             simple_live_app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             simple_live_app/build/app/outputs/flutter-apk/app-x86_64-release.apk
-
-      # 完成提示
-      - name: Job status
-        run: echo "🍏 Android build status is ${{ job.status }}."
