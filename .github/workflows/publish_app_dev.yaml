@@ -16,14 +16,15 @@ jobs:
     steps:
       # 签出代码（固定 dev 分支，禁用子模块）
       - uses: actions/checkout@v4
-       with:
-       # 精确指定分支名，避免通配符匹配失败
-         ref: dev
-       # 明确禁用子模块和标签拉取，减少不必要操作
-         submodules: false
-         fetch-tags: false
-       # 浅克隆，加快速度
-         fetch-depth: 1
+        with:
+          # 精确指定分支名，避免通配符匹配失败
+          ref: dev
+          # 明确禁用子模块和标签拉取，减少不必要操作
+          submodules: false
+          fetch-tags: false
+          # 浅克隆，加快速度
+          fetch-depth: 1
+
       # APK 签名设置
       - name: Download Android keystore
         id: android_keystore
